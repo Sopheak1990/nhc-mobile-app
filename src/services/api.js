@@ -1,7 +1,7 @@
 // services/api.js
 
 // Replace this with your actual IPv4 address! Do not use 'localhost'.
-const BASE_URL = 'http://192.168.1.174/NHC-Reservation/api';
+const BASE_URL = 'https://unhealthy-clip-coleslaw.ngrok-free.dev/NHC-Reservation';
 
 export const loginUser = async (username, password) => {
     try {
