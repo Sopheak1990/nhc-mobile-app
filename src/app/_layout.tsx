@@ -124,7 +124,7 @@ export default function RootLayout() {
           name="manage_users" 
           options={{ 
             drawerLabel: 'Manage Users', 
-            title: 'User Management',
+            title: 'Manage Users',
             drawerItemStyle: { display: role === 'super_admin' ? 'flex' : 'none' }
           }} 
         />

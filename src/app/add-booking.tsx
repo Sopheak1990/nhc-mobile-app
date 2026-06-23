@@ -83,12 +83,12 @@ export default function AddBookingScreen() {
           </TouchableOpacity>
 
           <Text style={styles.label}>Tour Company *</Text>
-          <TextInput style={styles.input} placeholder="e.g. Asian Trails" value={tourCompany} onChangeText={setTourCompany} />
+          <TextInput style={styles.input} placeholder="e.g., G-Adventure" value={tourCompany} onChangeText={setTourCompany} />
 
           <View style={styles.row}>
             <View style={styles.halfWidth}>
               <Text style={styles.label}>Booking Code *</Text>
-              <TextInput style={styles.input} placeholder="e.g. AT-102" value={bookingCode} onChangeText={setBookingCode} autoCapitalize="characters" />
+              <TextInput style={styles.input} placeholder="Must be unique" value={bookingCode} onChangeText={setBookingCode} autoCapitalize="characters" />
             </View>
             <View style={styles.halfWidth}>
               <Text style={styles.label}>Total Pax *</Text>
