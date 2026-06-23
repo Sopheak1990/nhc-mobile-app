@@ -18,9 +18,17 @@ export default function DashboardScreen() {
     setLoading(true);
     const result = await fetchDashboardData(filter);
     
-    if (result.status === 'success') {
-      setSummary(result.summary);
-      setBookings(result.data);
+    if (result && result.status === 'success') {
+      // FIX: Map the exact variable names sent from get_dashboard.php
+      setSummary({
+          total_books: result.total_books,
+          total_pax: result.total_pax
+      });
+      setBookings(result.recent_bookings || []);
+    } else {
+      // Fallback if data fails
+      setSummary({ total_books: 0, total_pax: 0 });
+      setBookings([]);
     }
     setLoading(false);
   };
@@ -68,11 +76,13 @@ export default function DashboardScreen() {
       <View style={styles.summaryContainer}>
         <View style={[styles.summaryBox, { backgroundColor: '#0d6efd' }]}>
             <Text style={styles.summaryLabel}>Bookings</Text>
-            <Text style={styles.summaryValue}>{summary.total_books}</Text>
+            {/* FIX: Added optional chaining and fallback for crash prevention */}
+            <Text style={styles.summaryValue}>{summary?.total_books ?? 0}</Text>
         </View>
         <View style={[styles.summaryBox, { backgroundColor: '#198754' }]}>
             <Text style={styles.summaryLabel}>Guests (Pax)</Text>
-            <Text style={styles.summaryValue}>{summary.total_pax}</Text>
+            {/* FIX: Added optional chaining and fallback for crash prevention */}
+            <Text style={styles.summaryValue}>{summary?.total_pax ?? 0}</Text>
         </View>
       </View>
 
@@ -96,22 +106,17 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Removed paddingTop: 50 so it aligns perfectly with the Drawer header
   container: { flex: 1, padding: 20, backgroundColor: '#f4f6f9' },
-  
   filterContainer: { flexDirection: 'row', backgroundColor: '#e9ecef', borderRadius: 8, padding: 4, marginBottom: 20 },
   filterButton: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
   filterButtonActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
   filterText: { color: '#6c757d', fontWeight: 'bold' },
   filterTextActive: { color: '#0d6efd' },
-
   summaryContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   summaryBox: { flex: 0.48, padding: 20, borderRadius: 10, alignItems: 'center', elevation: 3 },
   summaryLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600', marginBottom: 5 },
   summaryValue: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
-
   listTitle: { fontSize: 18, fontWeight: 'bold', color: '#495057', marginBottom: 10 },
-  
   card: { backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 12, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#0d6efd' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   tourCompany: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },

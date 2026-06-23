@@ -1,75 +1,59 @@
 // services/api.js
 
-// Replace this with your actual IPv4 address! Do not use 'localhost'.
 const BASE_URL = 'https://unhealthy-clip-coleslaw.ngrok-free.dev/NHC-Reservation';
 
-export const loginUser = async (username, password) => {
+// Centralized helper to avoid code duplication
+const apiFetch = async (endpoint, options = {}) => {
     try {
-        // Send the data to your PHP file
-        const response = await fetch(`${BASE_URL}/login.php`, {
-            method: 'POST',
+        const fullUrl = `${BASE_URL}/${endpoint}`;
+        const response = await fetch(fullUrl, {
+            ...options,
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-            },
-            // Package the username and password into a JSON string
-            body: JSON.stringify({ 
-                username: username, 
-                password: password 
-            }),
+                'ngrok-skip-browser-warning': '69420',
+                ...options.headers
+            }
         });
 
-        // Read the response from PHP
-        const json = await response.json();
-        return json;
-
+        const rawText = await response.text();
+        try {
+            return JSON.parse(rawText);
+        } catch (e) {
+            console.error(`🚨 SERVER ERROR in ${endpoint}:`, rawText);
+            return { status: "error", message: "Server returned invalid data." };
+        }
     } catch (error) {
-        console.error("API Error:", error);
+        console.error(`🚨 NETWORK ERROR in ${endpoint}:`, error);
         return { status: "error", message: "Cannot connect to server." };
     }
 };
 
-// Add the sortOrder parameter with a default of 'desc'
-export const fetchBookings = async (startDate = '', endDate = '', sortOrder = 'desc') => {
-    try {
-        // Pass the sort order in the URL string
-        let url = `${BASE_URL}/get_bookings.php?sort=${sortOrder}&`;
-        if (startDate) url += `start_date=${startDate}&`;
-        if (endDate) url += `end_date=${endDate}`;
+// --- API EXPORTS ---
 
-        const response = await fetch(url);
-        const json = await response.json();
-        return json;
-    } catch (error) {
-        console.error("Fetch Bookings Error:", error);
-        return { status: "error", message: "Cannot connect to server." };
-    }
-};
+export const loginUser = (username, password) => 
+    apiFetch('login.php', { method: 'POST', body: JSON.stringify({ username, password }) });
 
-// Add this to src/services/api.js
-export const fetchDashboardData = async (filter = 'today') => {
-    try {
-        const response = await fetch(`${BASE_URL}/get_dashboard.php?filter=${filter}`);
-        const json = await response.json();
-        return json;
-    } catch (error) {
-        console.error("Dashboard Fetch Error:", error);
-        return { status: "error", message: "Cannot connect to server." };
-    }
-};
+export const fetchBookings = (startDate = '', endDate = '', sortOrder = 'desc') => 
+    apiFetch(`get_bookings.php?sort=${sortOrder}&start_date=${startDate}&end_date=${endDate}`);
 
+export const fetchDashboardData = (filter = 'today') => 
+    apiFetch(`get_dashboard.php?filter=${filter}`);
 
-export const createBooking = async (bookingData) => {
-    try {
-        const response = await fetch(`${BASE_URL}/add_booking.php`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bookingData)
-        });
-        const json = await response.json();
-        return json;
-    } catch (error) {
-        console.error("Create Booking Error:", error);
-        return { status: "error", message: "Cannot connect to server." };
-    }
-};
+export const createBooking = (bookingData) => 
+    apiFetch('add_booking.php', { method: 'POST', body: JSON.stringify(bookingData) });
+
+export const manageUsers = (payload = null) => 
+    apiFetch('api_users.php', { method: payload ? 'POST' : 'GET', body: payload ? JSON.stringify(payload) : null });
+
+export const changePassword = (userId, currentPassword, newPassword) => 
+    apiFetch('api_change_password.php', { 
+        method: 'POST', 
+        body: JSON.stringify({ user_id: userId, current_password: currentPassword, new_password: newPassword }) 
+    });
+
+export const updateBooking = (bookingData) => 
+    apiFetch('api_update_booking.php', { method: 'POST', body: JSON.stringify(bookingData) });
+
+export const deleteBooking = (bookingId, userId) => 
+    apiFetch('api_delete_booking.php', { method: 'POST', body: JSON.stringify({ delete_id: bookingId, user_id: userId }) });

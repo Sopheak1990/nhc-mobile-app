@@ -1,25 +1,8 @@
-// 1. Add this import at the very top of src/app/index.tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// 2. Update your handleLoginPress function:
-const handleLoginPress = async () => {
-  const result = await loginUser(username, password);
-
-  if (result.status === 'success') {
-      // Save the user's name to the phone's memory
-      await AsyncStorage.setItem('userName', result.name);
-      
-      // Navigate to dashboard
-      router.replace('/dashboard'); 
-  } else {
-      Alert.alert("Error", result.message);
-  }
-};
-
-import { router } from 'expo-router';
+// src/app/index.tsx
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
-// This steps out of the 'app' folder and into the 'services' folder
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loginUser } from '../services/api'; 
 
 export default function LoginScreen() {
@@ -27,11 +10,17 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLoginPress = async () => {
+    // 1. Call the PHP API
     const result = await loginUser(username, password);
 
     if (result.status === 'success') {
-        // Automatically navigate to the new dashboard screen!
-        // We use 'replace' so they can't swipe back to the login screen without logging out
+        // 2. Save the user's name AND role to the phone's memory
+        // We use result.user because of how our login.php formats the JSON
+        await AsyncStorage.setItem('userId', result.user.id.toString());
+        await AsyncStorage.setItem('userName', result.user.name);
+        await AsyncStorage.setItem('userRole', result.user.role);
+        
+        // 3. Navigate to dashboard (replace prevents swiping back to login)
         router.replace('/dashboard'); 
     } else {
         Alert.alert("Error", result.message);
