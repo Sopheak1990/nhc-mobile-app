@@ -41,7 +41,7 @@ export const fetchDashboardData = (filter = 'today') =>
     apiFetch(`get_dashboard.php?filter=${filter}`);
 
 export const createBooking = (bookingData) => 
-    apiFetch('add_booking.php', { method: 'POST', body: JSON.stringify(bookingData) });
+    apiFetch('api_add_booking.php', { method: 'POST', body: JSON.stringify(bookingData) });
 
 export const manageUsers = (payload = null) => 
     apiFetch('api_users.php', { method: payload ? 'POST' : 'GET', body: payload ? JSON.stringify(payload) : null });

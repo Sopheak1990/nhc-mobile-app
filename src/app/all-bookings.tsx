@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Platform, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Platform, Modal, TextInput, Alert, RefreshControl } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { fetchBookings, updateBooking, deleteBooking } from '../services/api';
 
-// --- DEFINED INTERFACE TO FIX 'PROPERTY DOES NOT EXIST' ERROR ---
+// --- DEFINED INTERFACE ---
 interface Booking {
   BookingID: number;
   TourCompany: string;
@@ -21,6 +21,7 @@ interface Booking {
 export default function AllBookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // <--- Added Refresh State
   const [userRole, setUserRole] = useState('');
   
   // Modal States
@@ -56,6 +57,14 @@ export default function AllBookingsScreen() {
     setLoading(false);
   };
 
+  // --- ADDED PULL TO REFRESH FUNCTION ---
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const result = await fetchBookings(formatDateForDB(startDate), formatDateForDB(endDate), sortOrder);
+    if (result.status === 'success') setBookings(result.data);
+    setRefreshing(false);
+  }, [startDate, endDate, sortOrder]);
+
   const clearFilters = () => {
     setStartDate(null);
     setEndDate(null);
@@ -66,21 +75,21 @@ export default function AllBookingsScreen() {
   const handleDelete = (item: Booking) => { setEditingItem(item); setDeleteModalVisible(true); };
 
   const saveEdit = async () => {
-    if (!editingItem) return; // Guard clause to prevent null errors
+    if (!editingItem) return; 
     
     const result = await updateBooking(editingItem);
     
     if (result && result.status === 'success') {
       Alert.alert("Success", "Booking updated successfully!");
       setEditModalVisible(false);
-      loadBookings(); // Refresh the list
+      loadBookings(); 
     } else {
       Alert.alert("Error", result ? result.message : "Failed to update.");
     }
   };
 
   const confirmDelete = async () => {
-    if (!editingItem) return; // Guard clause to prevent null errors
+    if (!editingItem) return; 
 
     const userId = await AsyncStorage.getItem('userId');
     const result = await deleteBooking(editingItem.BookingID, userId);
@@ -92,6 +101,16 @@ export default function AllBookingsScreen() {
     } else {
       Alert.alert("Error", result ? result.message : "Failed to delete.");
     }
+  };
+
+  const onChangeStartDate = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowStartPicker(false);
+    if (selectedDate) setStartDate(selectedDate);
+  };
+
+  const onChangeEndDate = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowEndPicker(false);
+    if (selectedDate) setEndDate(selectedDate);
   };
 
   const renderBookingItem = ({ item }: { item: Booking }) => {
@@ -149,8 +168,32 @@ export default function AllBookingsScreen() {
         </View>
       </View>
 
-      {Platform.OS === 'android' && showStartPicker && <DateTimePicker value={startDate || new Date()} mode="date" display="default" onChange={(e, d) => { setShowStartPicker(false); if(d) setStartDate(d); }} />}
-      {Platform.OS === 'android' && showEndPicker && <DateTimePicker value={endDate || new Date()} mode="date" display="default" onChange={(e, d) => { setShowEndPicker(false); if(d) setEndDate(d); }} />}
+      {Platform.OS === 'android' && showStartPicker && (
+        <DateTimePicker value={startDate || new Date()} mode="date" display="default" onChange={onChangeStartDate} />
+      )}
+      {Platform.OS === 'android' && showEndPicker && (
+        <DateTimePicker value={endDate || new Date()} mode="date" display="default" onChange={onChangeEndDate} />
+      )}
+
+      {Platform.OS === 'ios' && (
+        <Modal visible={showStartPicker || showEndPicker} animationType="slide" transparent={true}>
+          <View style={styles.iosPickerOverlay}>
+            <View style={styles.iosPickerContainer}>
+              <View style={styles.iosPickerHeader}>
+                <TouchableOpacity onPress={() => { setShowStartPicker(false); setShowEndPicker(false); }}>
+                  <Text style={styles.iosDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              {showStartPicker && (
+                <DateTimePicker value={startDate || new Date()} mode="date" display="inline" onChange={onChangeStartDate} />
+              )}
+              {showEndPicker && (
+                <DateTimePicker value={endDate || new Date()} mode="date" display="inline" onChange={onChangeEndDate} />
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
 
       <View style={styles.listHeaderRow}>
         <Text style={styles.listTitle}>Master List</Text>
@@ -160,7 +203,22 @@ export default function AllBookingsScreen() {
       </View>
 
       {loading ? <ActivityIndicator size="large" color="#0d6efd" style={{ marginTop: 30 }} /> : (
-        <FlatList data={bookings} keyExtractor={(item) => item.BookingID.toString()} renderItem={renderBookingItem} contentContainerStyle={{ paddingBottom: 20 }} ListEmptyComponent={<Text style={styles.emptyText}>No bookings found.</Text>} />
+        <FlatList 
+          data={bookings} 
+          keyExtractor={(item) => item.BookingID.toString()} 
+          renderItem={renderBookingItem} 
+          contentContainerStyle={{ paddingBottom: 20 }} 
+          ListEmptyComponent={<Text style={styles.emptyText}>No bookings found.</Text>}
+          /* --- ADDED PULL TO REFRESH CONTROL --- */
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={["#0d6efd"]} 
+              tintColor="#0d6efd" 
+            />
+          }
+        />
       )}
 
       {/* EDIT MODAL */}
@@ -253,5 +311,9 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: '#fff', padding: 20, borderRadius: 10, elevation: 5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
   input: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 15 },
-  inputLabel: { fontSize: 12, color: '#666', marginBottom: 5, fontWeight: '600' } // Added missing style
+  inputLabel: { fontSize: 12, color: '#666', marginBottom: 5, fontWeight: '600' },
+  iosPickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  iosPickerContainer: { backgroundColor: '#fff', paddingBottom: 30, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  iosPickerHeader: { alignItems: 'flex-end', padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  iosDoneText: { color: '#0d6efd', fontWeight: 'bold', fontSize: 16 }
 });
