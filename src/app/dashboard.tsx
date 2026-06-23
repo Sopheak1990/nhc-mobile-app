@@ -1,22 +1,24 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchDashboardData } from '../services/api';
 
 // Define the shape of your dashboard data
 interface DashboardStats {
   total_bookings: number;
+  total_pax: number;
   confirmed: number;
   pending: number;
-  total_pax: number;
   recent_bookings: any[];
 }
 
 export default function DashboardScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // State for Pull-to-Refresh
-  const [activeFilter, setActiveFilter] = useState('today'); // 'today', 'week', 'month', 'all'
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('today'); // 'today', 'month', 'year'
+  const [userRole, setUserRole] = useState(''); // Added user role state
 
   // Standard load function
   const loadDashboard = async (filter = activeFilter) => {
@@ -30,100 +32,165 @@ export default function DashboardScreen() {
 
   // Pull-to-Refresh function
   const onRefresh = useCallback(async () => {
-    setRefreshing(true); // Show the spinning wheel
-    const result = await fetchDashboardData(activeFilter); // Fetch latest data for current filter
+    setRefreshing(true);
+    const result = await fetchDashboardData(activeFilter);
     if (result.status === 'success') {
       setStats(result.data);
     }
-    setRefreshing(false); // Hide the spinning wheel
+    setRefreshing(false);
   }, [activeFilter]);
 
-  // Refresh data when screen comes into focus
+  // Load Role and Dashboard Data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      loadDashboard();
+      const initPage = async () => {
+        const role = await AsyncStorage.getItem('userRole');
+        setUserRole(role || '');
+        loadDashboard();
+      };
+      initPage();
     }, [activeFilter])
   );
 
-  // Helper component for filter buttons
+  // Dynamic Text Helpers
+  const getOverviewTitle = () => {
+    if (activeFilter === 'month') return "This Month's Overview";
+    if (activeFilter === 'year') return "This Year's Overview";
+    return "Today's Overview";
+  };
+
+  const getDateBadge = () => {
+    const date = new Date();
+    if (activeFilter === 'month') return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    if (activeFilter === 'year') return date.getFullYear().toString();
+    return date.toLocaleDateString('en-GB', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  // Format list dates elegantly (e.g., "Tue, 23 Jun 2026")
+  const formatListDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString; 
+    return date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // Filter Button Component
   const FilterButton = ({ label, value }: { label: string, value: string }) => (
     <TouchableOpacity 
-      style={[styles.filterBtn, activeFilter === value && styles.filterBtnActive]} 
+      style={[styles.filterBtn, activeFilter === value ? styles.filterBtnActive : styles.filterBtnInactive]} 
       onPress={() => setActiveFilter(value)}
     >
-      <Text style={[styles.filterText, activeFilter === value && styles.filterTextActive]}>{label}</Text>
+      <Text style={[styles.filterText, activeFilter === value ? styles.filterTextActive : styles.filterTextInactive]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
+  // Role verification (True if super_admin or manager)
+  const role = userRole ? userRole.toLowerCase().trim() : '';
+  const canModify = role === 'super_admin' || role === 'manager';
+
   return (
     <View style={styles.container}>
-      {/* HEADER FILTERS */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+      {/* HEADER SECTION */}
+      <View style={styles.headerContainer}>
+        <View style={styles.headerTextRow}>
+          <Text style={styles.pageTitle}>{getOverviewTitle()}</Text>
+          <View style={styles.dateBadge}>
+            <Text style={styles.dateBadgeText}>📅 {getDateBadge()}</Text>
+          </View>
+        </View>
+
+        {/* BUTTON GROUP */}
+        <View style={styles.btnGroup}>
           <FilterButton label="Today" value="today" />
-          <FilterButton label="This Week" value="week" />
-          <FilterButton label="This Month" value="month" />
-          <FilterButton label="All Time" value="all" />
-        </ScrollView>
+          <FilterButton label="Month" value="month" />
+          <FilterButton label="Year" value="year" />
+        </View>
       </View>
 
-      {/* Show big spinner only on first load, not during pull-to-refresh */}
       {loading && !refreshing ? (
         <ActivityIndicator size="large" color="#0d6efd" style={{ marginTop: 50 }} />
       ) : (
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
-          // --- PULL TO REFRESH CONTROL ---
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh} 
-              colors={["#0d6efd"]} 
-              tintColor="#0d6efd" 
-            />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0d6efd"]} />}
+          stickyHeaderIndices={[0]} // <--- THIS LOCKS THE FIRST CHILD (The Sticky Wrapper)
         >
-          {/* SUMMARY GRID */}
-          <View style={styles.grid}>
-            <View style={[styles.statCard, { borderTopColor: '#0d6efd' }]}>
-              <Text style={styles.statLabel}>Total Bookings</Text>
-              <Text style={styles.statValue}>{stats?.total_bookings || 0}</Text>
+          {/* INDEX 0: STICKY WRAPPER (Stats Cards + Quick Action) */}
+          <View style={styles.stickyWrapper}>
+            {/* STATS CARDS */}
+            <View style={styles.row}>
+              <View style={[styles.statCard, styles.bgPrimary]}>
+                <Text style={styles.statCardTitle}>Bookings</Text>
+                <Text style={styles.statCardValue}>{stats?.total_bookings || 0}</Text>
+              </View>
+              <View style={[styles.statCard, styles.bgSuccess]}>
+                <Text style={styles.statCardTitle}>Guests (Pax)</Text>
+                <Text style={styles.statCardValue}>{stats?.total_pax || 0}</Text>
+              </View>
             </View>
-            <View style={[styles.statCard, { borderTopColor: '#17a2b8' }]}>
-              <Text style={styles.statLabel}>Total Pax</Text>
-              <Text style={styles.statValue}>{stats?.total_pax || 0}</Text>
-            </View>
-            <View style={[styles.statCard, { borderTopColor: '#28a745' }]}>
-              <Text style={styles.statLabel}>Confirmed</Text>
-              <Text style={[styles.statValue, { color: '#28a745' }]}>{stats?.confirmed || 0}</Text>
-            </View>
-            <View style={[styles.statCard, { borderTopColor: '#ffc107' }]}>
-              <Text style={styles.statLabel}>Pending</Text>
-              <Text style={[styles.statValue, { color: '#d39e00' }]}>{stats?.pending || 0}</Text>
-            </View>
+
+            {/* QUICK ACTION CARD MOVED INSIDE STICKY WRAPPER */}
+            {canModify && (
+              <View style={[styles.quickActionCard, styles.bgWarning]}>
+                <Text style={styles.quickActionTitle}>Quick Action</Text>
+                <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.navigate('/add-booking')}>
+                  <Text style={styles.quickActionBtnText}>➕ Add New Booking</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
-          {/* RECENT BOOKINGS PREVIEW */}
-          <Text style={styles.sectionTitle}>Recent Bookings (All Time)</Text>
-          <View style={styles.recentList}>
-            {stats?.recent_bookings && stats.recent_bookings.length > 0 ? (
-              stats.recent_bookings.map((booking, index) => {
-                const isConfirmed = booking.Confirm && booking.Confirm.trim() === 'True';
-                return (
-                  <View key={index} style={styles.recentItem}>
-                    <View>
-                      <Text style={styles.recentCompany}>{booking.TourCompany}</Text>
-                      <Text style={styles.recentDate}>Date: {booking.BookingDate} | Pax: {booking.Pax}</Text>
-                    </View>
-                    <Text style={[styles.badge, isConfirmed ? styles.badgeConfirmed : styles.badgePending]}>
-                      {isConfirmed ? 'Confirmed' : 'Pending'}
-                    </Text>
-                  </View>
-                );
-              })
-            ) : (
-              <Text style={styles.emptyText}>No recent bookings found.</Text>
-            )}
+          {/* INDEX 1+: SCROLLABLE CONTENT (List starts here) */}
+          <View style={styles.scrollableContentSection}>
+            {/* BOOKING SCHEDULE LIST */}
+            <View style={styles.listContainer}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listHeaderTitle}>📋 Booking Schedule</Text>
+              </View>
+              <View style={styles.listBody}>
+                {stats?.recent_bookings && stats.recent_bookings.length > 0 ? (
+                  stats.recent_bookings.map((tour) => {
+                    const isConfirmed = tour.Confirm && tour.Confirm.trim() === 'True';
+                    const isLunch = tour.Meal === 'Lunch';
+
+                    return (
+                      <View key={tour.BookingID} style={styles.listItem}>
+                        {/* Top Row: Company & Status */}
+                        <View style={styles.itemRow}>
+                          <Text style={styles.itemCompany}>{tour.TourCompany}</Text>
+                          <Text style={[styles.statusBadge, isConfirmed ? styles.statusConfirmed : styles.statusPending]}>
+                            {isConfirmed ? '✓ Confirmed' : '⏱ Pending'}
+                          </Text>
+                        </View>
+                        
+                        {/* Second Row: Date & Pax */}
+                        <View style={styles.itemRow}>
+                          <Text style={styles.itemDate}>{formatListDate(tour.BookingDate)}</Text>
+                          <Text style={styles.itemPax}>Pax: {tour.Pax}</Text>
+                        </View>
+
+                        {/* Third Row: Guide & Meal */}
+                        <View style={[styles.itemRow, { marginTop: 8 }]}>
+                          <View style={styles.guideInfo}>
+                            <Text style={styles.guideName}>{tour.TourGuideName}</Text>
+                            <Text style={styles.guideContact}>📞 {tour.TourGuideContact || 'N/A'}</Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.mealBadge, isLunch ? styles.mealLunch : styles.mealDinner]}>
+                              {isLunch ? '☀️ Lunch' : '🌙 Dinner'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.emptyText}>No tours scheduled for this timeframe.</Text>
+                )}
+              </View>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -133,42 +200,78 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f6f9' },
-  filterContainer: { backgroundColor: '#fff', paddingVertical: 10, elevation: 2, zIndex: 10 },
-  filterScroll: { paddingHorizontal: 15, gap: 10 },
-  filterBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#e9ecef' },
+  
+  // Header & Filters
+  headerContainer: { backgroundColor: '#fff', padding: 15, borderBottomWidth: 1, borderBottomColor: '#dee2e6', zIndex: 10 },
+  headerTextRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  pageTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  dateBadge: { backgroundColor: '#6c757d', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  dateBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  
+  btnGroup: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#0d6efd' },
+  filterBtn: { flex: 1, paddingVertical: 8, alignItems: 'center' },
   filterBtnActive: { backgroundColor: '#0d6efd' },
-  filterText: { color: '#495057', fontWeight: 'bold', fontSize: 13 },
+  filterBtnInactive: { backgroundColor: '#fff' },
+  filterText: { fontSize: 13, fontWeight: 'bold' },
   filterTextActive: { color: '#fff' },
-  
-  scrollContent: { padding: 15, paddingBottom: 30 },
-  
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 25 },
-  statCard: { 
-    width: '48%', 
-    backgroundColor: '#fff', 
-    padding: 15, 
-    borderRadius: 8, 
-    marginBottom: 15, 
-    elevation: 2,
-    borderTopWidth: 4 
-  },
-  statLabel: { fontSize: 13, color: '#6c757d', fontWeight: '600', marginBottom: 5 },
-  statValue: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  filterTextInactive: { color: '#0d6efd' },
 
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-  recentList: { backgroundColor: '#fff', borderRadius: 8, elevation: 2, overflow: 'hidden' },
-  recentItem: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#f1f1f1' 
+  scrollContent: { paddingBottom: 40 }, // Removed horizontal padding so sticky header goes edge-to-edge
+
+  // Sticky Wrapper
+  stickyWrapper: {
+    backgroundColor: '#f4f6f9', // Matches app background so list hides under it
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 5,
+    zIndex: 100, // Keeps it above the scrolling list
   },
-  recentCompany: { fontSize: 15, fontWeight: 'bold', color: '#333', marginBottom: 3 },
-  recentDate: { fontSize: 12, color: '#6c757d' },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, fontSize: 11, fontWeight: 'bold', overflow: 'hidden' },
-  badgeConfirmed: { backgroundColor: '#d4edda', color: '#155724' },
-  badgePending: { backgroundColor: '#fff3cd', color: '#856404' },
-  emptyText: { padding: 20, textAlign: 'center', color: '#888' }
+  
+  // Scrollable Content Layout
+  scrollableContentSection: {
+    paddingHorizontal: 15,
+  },
+
+  // Summary Cards
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  statCard: { flex: 0.48, padding: 15, borderRadius: 8, elevation: 2 },
+  bgPrimary: { backgroundColor: '#0d6efd' },
+  bgSuccess: { backgroundColor: '#198754' },
+  statCardTitle: { color: '#fff', fontSize: 14, fontWeight: '600', marginBottom: 5 },
+  statCardValue: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
+
+  // Quick Action Card
+  quickActionCard: { padding: 15, borderRadius: 8, elevation: 2, marginBottom: 10, alignItems: 'center' },
+  bgWarning: { backgroundColor: '#ffc107' },
+  quickActionTitle: { color: '#212529', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  quickActionBtn: { backgroundColor: '#212529', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6, width: '100%', alignItems: 'center' },
+  quickActionBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+
+  // List Container
+  listContainer: { backgroundColor: '#fff', borderRadius: 8, elevation: 2, overflow: 'hidden' },
+  listHeader: { backgroundColor: '#fff', padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  listHeaderTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  listBody: { padding: 0 },
+  
+  // List Item Formats
+  listItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#f1f1f1' },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  itemCompany: { fontSize: 16, fontWeight: 'bold', color: '#0d6efd' },
+  itemDate: { fontSize: 14, color: '#495057', fontWeight: '500' },
+  itemPax: { fontSize: 14, fontWeight: 'bold', color: '#212529' },
+  
+  guideInfo: { flex: 1 },
+  guideName: { fontSize: 14, color: '#333' },
+  guideContact: { fontSize: 12, color: '#6c757d', marginTop: 2 },
+  
+  // Badges
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, fontSize: 11, fontWeight: 'bold' },
+  statusConfirmed: { backgroundColor: '#d4edda', color: '#155724' },
+  statusPending: { backgroundColor: '#fff3cd', color: '#856404' },
+  
+  mealBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, fontSize: 11, fontWeight: 'bold' },
+  mealLunch: { backgroundColor: '#ffc107', color: '#000' },
+  mealDinner: { backgroundColor: '#212529', color: '#fff' },
+
+  emptyText: { padding: 20, textAlign: 'center', color: '#888', fontStyle: 'italic' }
 });

@@ -1,18 +1,16 @@
-// src/app/_layout.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
-import { router, usePathname } from 'expo-router'; // <-- FIX: Added usePathname
+import { router, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function CustomDrawerContent(props: any) {
   const [userName, setUserName] = useState('Loading...');
   const [userRole, setUserRole] = useState('');
-  const pathname = usePathname(); // <-- FIX: Track the current page
+  const pathname = usePathname();
 
-  // FIX: Added 'pathname' to the dependency array so it refreshes on login/logout!
   useEffect(() => {
     const loadUser = async () => {
       const storedName = await AsyncStorage.getItem('userName');
@@ -21,7 +19,7 @@ function CustomDrawerContent(props: any) {
       if (storedName) {
         setUserName(storedName);
       } else {
-        setUserName('Guest'); // Fallback if logged out
+        setUserName('Guest');
       }
 
       if (storedRole) {
@@ -33,18 +31,14 @@ function CustomDrawerContent(props: any) {
     loadUser();
   }, [pathname]);
 
-  // Clear memory and reset state so the Sidebar refreshes instantly
   const handleLogout = async () => {
-    // 1. Remove from phone storage
     await AsyncStorage.removeItem('userName');
     await AsyncStorage.removeItem('userRole');
     await AsyncStorage.removeItem('userId');
 
-    // 2. Clear the local state so the sidebar updates visually
     setUserName('Guest');
     setUserRole('');
 
-    // 3. Navigate back to login
     router.replace('/');
   };
 
@@ -75,9 +69,8 @@ function CustomDrawerContent(props: any) {
 
 export default function RootLayout() {
   const [role, setRole] = useState('');
-  const pathname = usePathname(); // <-- FIX: Track the current page
+  const pathname = usePathname();
 
-  // FIX: Added 'pathname' here too so the Manage Users tab updates instantly
   useEffect(() => {
     const fetchRole = async () => {
       const storedRole = await AsyncStorage.getItem('userRole');
@@ -89,6 +82,9 @@ export default function RootLayout() {
     };
     fetchRole();
   }, [pathname]);
+
+  // Helper boolean to check if the user is allowed to add/edit bookings
+  const canModify = role === 'super_admin' || role === 'manager';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -112,10 +108,18 @@ export default function RootLayout() {
           name="all-bookings" 
           options={{ drawerLabel: 'All Bookings', title: 'Bookings List' }} 
         />
+        
+        {/* RESTRICTED: Add New Booking */}
         <Drawer.Screen 
           name="add-booking" 
-          options={{ drawerLabel: 'Add New Booking', title: 'New Reservation' }} 
+          options={{ 
+            drawerLabel: 'Add New Booking', 
+            title: 'New Reservation',
+            drawerItemStyle: { display: canModify ? 'flex' : 'none' } 
+          }} 
         />
+        
+        {/* RESTRICTED: Manage Users */}
         <Drawer.Screen 
           name="manage_users" 
           options={{ 
@@ -124,6 +128,7 @@ export default function RootLayout() {
             drawerItemStyle: { display: role === 'super_admin' ? 'flex' : 'none' }
           }} 
         />
+        
         <Drawer.Screen 
           name="change_password" 
           options={{ drawerLabel: 'Change Password', title: 'Security' }} 

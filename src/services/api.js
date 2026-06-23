@@ -43,8 +43,18 @@ export const fetchDashboardData = (filter = 'today') =>
 export const createBooking = (bookingData) => 
     apiFetch('api_add_booking.php', { method: 'POST', body: JSON.stringify(bookingData) });
 
-export const manageUsers = (payload = null) => 
-    apiFetch('api_users.php', { method: payload ? 'POST' : 'GET', body: payload ? JSON.stringify(payload) : null });
+export const manageUsers = async (userData) => {
+  // If data is passed in (like for Edit or Delete), send a POST request
+  if (userData) {
+    return apiFetch('api_manage_users.php', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  }
+  
+  // If no data is passed (just loading the list), send a normal request
+  return apiFetch('api_manage_users.php');
+};
 
 export const changePassword = (userId, currentPassword, newPassword) => 
     apiFetch('api_change_password.php', { 

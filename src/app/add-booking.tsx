@@ -1,4 +1,3 @@
-// src/app/add-booking.tsx
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -69,6 +68,11 @@ export default function AddBookingScreen() {
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
+        {/* --- ADDED BACK BUTTON --- */}
+        <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/all-bookings')}>
+          <Text style={styles.backButtonText}>← Back to All Bookings</Text>
+        </TouchableOpacity>
+
         <View style={styles.formCard}>
           <Text style={styles.sectionTitle}>New Reservation</Text>
 
@@ -151,6 +155,11 @@ export default function AddBookingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f6f9' },
   scrollContent: { padding: 15, paddingBottom: 40 },
+  
+  // --- Back Button Styles ---
+  backButton: { marginBottom: 15, alignSelf: 'flex-start' },
+  backButtonText: { color: '#0d6efd', fontSize: 16, fontWeight: '600' },
+
   formCard: { backgroundColor: '#fff', padding: 20, borderRadius: 10, elevation: 3 },
   sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#343a40', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 10 },
   
