@@ -26,11 +26,19 @@ export default function ManageUsersScreen() {
 
   const loadUsers = async () => {
     setLoading(true);
-    const result = await manageUsers(); 
-    if (result && result.status === 'success') {
-      setUsers(result.data);
-    } else {
-      Alert.alert("Error", "Failed to load users");
+    try {
+      const result = await manageUsers(); 
+      console.log("MANAGE USERS RAW RESPONSE:", result); // <-- Look for this in your terminal!
+
+      if (result && result.status === 'success') {
+        setUsers(result.data);
+      } else {
+        // This will now show the real error from your database/PHP
+        Alert.alert("Error", result?.message || "Invalid data received from server. Check console.");
+      }
+    } catch (error) {
+      console.error("Network crash:", error);
+      Alert.alert("Network Error", "Could not connect to the server.");
     }
     setLoading(false);
   };

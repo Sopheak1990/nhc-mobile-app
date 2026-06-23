@@ -16,19 +16,28 @@ const apiFetch = async (endpoint, options = {}) => {
             }
         });
 
+        // 1. Get the raw response text first
         const rawText = await response.text();
+
+        // 2. Check if the HTTP status is successful (200-299)
+        if (!response.ok) {
+            console.error(`🚨 HTTP ERROR ${response.status} in ${endpoint}:`, rawText);
+            return { status: "error", message: `Server error: ${response.status}` };
+        }
+
+        // 3. Try parsing the JSON
         try {
             return JSON.parse(rawText);
         } catch (e) {
-            console.error(`🚨 SERVER ERROR in ${endpoint}:`, rawText);
-            return { status: "error", message: "Server returned invalid data." };
+            console.error(`🚨 JSON PARSE ERROR in ${endpoint}:`, rawText);
+            return { status: "error", message: "Server returned invalid data format." };
         }
     } catch (error) {
+        // 4. Catches network failures (DNS, timeout, connection refused)
         console.error(`🚨 NETWORK ERROR in ${endpoint}:`, error);
-        return { status: "error", message: "Cannot connect to server." };
+        return { status: "error", message: "Cannot connect to server. Ensure your server is running." };
     }
 };
-
 // --- API EXPORTS ---
 
 export const loginUser = (username, password) => 
